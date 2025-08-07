@@ -29,20 +29,20 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
 
 char* init_artists =
     "create table artists("
-    "id   integer primary key autoincrement,"
+    "id   integer primary key,"
     "name text unique not null"
     ");";
 
 char *init_albums =
   "create table albums("
-  "id        integer primary key autoincrement,"
+  "id        integer primary key,"
   "title      text not null,"
   "artist_id integer," 
   "foreign key(artist_id) references artist(id)"
   ");";
 
 char *init_songs = "create table songs("
-  "id        integer primary key autoincrement,"
+  "id        integer primary key,"
   "title     text not null,"
   "artist_id integer,"
   "album_id  integer,"
@@ -52,7 +52,7 @@ char *init_songs = "create table songs("
   ");";
 
 char *init_files = "create table files("
-  "id        integer primary key autoincrement,"
+  "id        integer primary key,"
   "path      text not null,"
   "extension text not null,"
   "song_id integer," 
@@ -182,9 +182,6 @@ sqlite3_int64 insert_or_get_song(sqlite3 *db, const char *title,
 }
 
 sqlite3_int64 insert_file(sqlite3 *db, char *path, char* extension, sqlite3_int64 song_id) {
-
-
-  
   sqlite3_stmt *stmt;
   const char *sql_insert_album =
       "INSERT INTO files (path, extension, song_id) VALUES (?, ?, ?);";
@@ -207,15 +204,6 @@ sqlite3_int64 insert_file(sqlite3 *db, char *path, char* extension, sqlite3_int6
   sqlite3_int64 file_id = sqlite3_last_insert_rowid(db);   
   return file_id;
 }
-
-
-char *get_filename_ext(const char *filename) {
-  char *dot = strrchr(filename, '.');
-  if (!dot || dot == filename) return "";
-  return dot + 1;
-}
-
-
 
 int main(int argc, char* argv[]) {
   char* root;
@@ -277,8 +265,6 @@ int main(int argc, char* argv[]) {
 	  char *song_path = concat(format_dir, "/", song_filename);
 	  printf("  > %s\n", song_filename);
 
-	  char* song_ext = get_filename_ext(song_filename);
-
 	  TagLib_File *file = taglib_file_new(song_path);
 	  if (!file) {
 	    fprintf(stderr, "Failed to open file\n");
@@ -290,8 +276,8 @@ int main(int argc, char* argv[]) {
 	  sqlite3_int64 song_id =
 	    insert_or_get_song(db, taglib_tag_title(tag), artist_id, album_id);
 
-	  sqlite3_int64 file_id =
-	    insert_file(db, song_path, song_ext, song_id);
+          sqlite3_int64 file_id = insert_file(db, song_path, format, song_id);
+
 	  taglib_file_free(file);
 	  free(songs[song_idx]);
 	}
