@@ -1,0 +1,87 @@
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    font-family: sans-serif;
+}
+
+.overview {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+aside {
+    width: 30vh;
+    background: #f4f4f4;
+    padding: 0.8rem;
+    overflow-y: auto;
+    border-right: 2px solid #ccc;
+}
+aside h2 {
+    margin-top: 0;
+    margin-bottom: 0;
+    font-size: 1rem;
+}
+aside ul {
+    list-style: none;
+    padding-left: 20px;
+}
+aside a {
+    color: inherit;     /* keeps the text color from parent */
+    text-decoration: none; /* removes underline */
+    cursor: pointer;
+    font-size: 1.2rem;
+}
+aside a:hover {
+    text-decoration: underline; /* highlight on hover */
+}
+
+main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    background: #fff;
+}
+
+footer {
+    background: #f1f2f3;
+    color: #000;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+
+    border-top: 2px solid #ccc; /* thin, light gray line */
+}
+.track-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.track-info img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+.track-title {
+    font-weight: bold;
+}
+.track-artist {
+    font-size: 0.9rem;
+}
+.audio-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+.audio-container audio {
+    width: 400px;
+}
