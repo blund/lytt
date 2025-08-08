@@ -1,4 +1,5 @@
 #include <string.h>
+#include <malloc.h>
 
 #include <microhttpd.h>
 
@@ -19,5 +20,11 @@ int ok(char *content, char *mime, struct MHD_Connection *conn) {
   MHD_destroy_response(response);
 
   return ret;
+}
 
+char *copy(const char *string) {
+  char* dest = malloc(strlen(string) + 1);
+  strcpy(dest, string);
+
+  return dest;
 }

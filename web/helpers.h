@@ -6,4 +6,5 @@ char* has_extension(const char *ext, const char *filename);
 
 int ok(char *content, char *mime, struct MHD_Connection *conn);
 
+char *copy(const char *string);
 #endif

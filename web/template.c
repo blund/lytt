@@ -46,7 +46,7 @@ char* get_artist_list(sqlite3 *db) {
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
       sqlite3_int64 artist_id = sqlite3_column_int64(stmt, 0);
       const unsigned char *name = sqlite3_column_text(stmt, 1);
-      add_to(sb, "<li><a fx-target=\"#explore\" fx-swap=\"innerHTML\" fx-action=\"/artist?id=%d\">%s</a></li>\n", artist_id, name);
+      add_to(sb, "<li><a href=\"#\" fx-target=\"#explore\" fx-swap=\"innerHTML\" fx-action=\"/artist?id=%d\">%s</a></li>\n", artist_id, name);
     }
     add_to(sb, "</ul>\n");
     sqlite3_finalize(stmt);
@@ -71,7 +71,7 @@ char* get_album_list(sqlite3 *db) {
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
       sqlite3_int64 album_id = sqlite3_column_int64(stmt, 0);
       const unsigned char *name = sqlite3_column_text(stmt, 1);
-      add_to(sb, "<li><a href=\"/album?id=%lld\">%s</a></li>\n", album_id, name);
+      add_to(sb, "<li><a href=\"#\" fx-target=\"#explore\" fx-swap=\"innerHTML\" fx-action=\"/album?id=%d\">%s</a></li>\n", album_id, name);
     }
     add_to(sb, "</ul>\n");
     sqlite3_finalize(stmt);
