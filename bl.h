@@ -34,6 +34,7 @@ char* to_string(StringBuilder* b);
 
 
 int read_file(const char *filename, char **data);
+int write_file(char *filename, char *data);
 int string_replace(char **orig, char *rep, char *with);
 void _release_assert(const char *assertionExpr, const char *assertionFile,
 		     unsigned int assertionLine, const char *assertionFunction, const char* msg);
@@ -70,8 +71,7 @@ int read_file(const char* filename, char** out) {
     char* data = 0;
 
     struct stat st;
-    if (stat(filename, &st) != 0)
-    {
+    if (stat(filename, &st) != 0) {
         fprintf(stderr, "Failed to access file '%s' for file size, errno = %d (%s)\n",
                 filename, errno, strerror(errno));
         abort();
@@ -84,8 +84,7 @@ int read_file(const char* filename, char** out) {
     data[size] = '\0';
 
     FILE* fp = fopen(filename, "r");
-    if (fp == 0)
-    {
+    if (fp == 0) {
         fprintf(stderr, "Failed to open file '%s' for read, errno = %d (%s)\n",
                 filename, errno, strerror(errno));
         abort();
@@ -105,6 +104,18 @@ int read_file(const char* filename, char** out) {
 
     *out = data;
     return size;
+}
+
+int write_file(char *filename, char *data) {
+  FILE *fptr;
+
+  fptr = fopen(filename, "w");
+  if (!fptr) return 0;
+
+  int result = fprintf(fptr, data);
+  fclose(fptr);
+
+  if (result < 0) return 0;
 }
 
 int string_replace(char **orig, char *rep, char *with) {
