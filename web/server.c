@@ -66,14 +66,11 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
                         void **con_cls) {
   sqlite3 *db = (sqlite3 *)cls;
 
-  if (starts_with(url, "/static")) {
+  if (starts_with(url, "/static"))
     return get_static_file(conn, url);
-  }
 
-  if (starts_with(url, "/artist")) {
-    puts("bam");
+  if (starts_with(url, "/artist"))
     return get_artist(conn, url, db);
-  }
 
   return get_layout(conn);
 }
@@ -81,34 +78,21 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
 int get_static_file(struct MHD_Connection *conn, const char *url) {
   const char* filename = url + 1;
 
-  struct MHD_Response *response;
-  int ret;
-
   char* file;
   int result = read_file(filename, &file);
   if (!result) {
-    ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, response);
+    struct MHD_Response *response;
+    int ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, response);
+    MHD_destroy_response(response);
     return ret;
   }
 
-  int len = strlen(file);
-  response = MHD_create_response_from_buffer(len, file, MHD_RESPMEM_MUST_FREE);
-
   char *mime = "text/plain";
-  if (has_extension(".css", filename)) {
-    mime = "text/css";
-  }
-  else if (has_extension(".js", filename)) {
-    mime = "text/javascript";
-  }
-  else {
-    assert(0, filename);
-  }
+  if      (has_extension(".css", filename)) mime = "text/css";
+  else if (has_extension(".js", filename))  mime = "text/javascript";
+  else assert(0, filename);
 
-  MHD_add_response_header(response, "Content-Type", mime);
-  ret = MHD_queue_response(conn, MHD_HTTP_OK, response);
-  MHD_destroy_response(response);
-  return ret;
+  return ok(file, mime, conn);
 }
 
 // Returns the main html file for the website
@@ -119,14 +103,8 @@ int get_layout(struct MHD_Connection *conn) {
   char* page;
   int result = read_file("layout.html", &page);
   assert(result != 0, "could not read layout.html");
-  response = MHD_create_response_from_buffer(
-      strlen(page), (void *)page, MHD_RESPMEM_PERSISTENT);
 
-  MHD_add_response_header(response, "Content-Type", "text/html");
-  ret = MHD_queue_response(conn, MHD_HTTP_OK, response);
-  MHD_destroy_response(response);
-
-  return ret;
+  return ok(page, "text/html", conn);
 }
 
 int get_artist(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
@@ -134,14 +112,6 @@ int get_artist(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
       MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
   if (!id) return MHD_NO;
 
-  char* response_text = concat("<p>", id, "</p>");
-  struct MHD_Response *response = MHD_create_response_from_buffer(
-      strlen(response_text), response_text, MHD_RESPMEM_MUST_COPY);
-
-  MHD_add_response_header(response, "Content-Type", "text/html");
-
-  int ret = MHD_queue_response(conn, MHD_HTTP_OK, response);
-  MHD_destroy_response(response);
-
-  return ret;
+  char *content = concat("<p>", id, "</p>");
+  return ok(content, "text/html", conn);
 }
