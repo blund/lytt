@@ -23,6 +23,7 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
 
 int get_static_file(struct MHD_Connection *conn, const char* url);
 int get_layout(struct MHD_Connection *conn);
+int get_artist(struct MHD_Connection *conn, const char *url, sqlite3* db);
 
 int running = 1;
 void handle_signal(int sig) {
@@ -65,8 +66,13 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
                         void **con_cls) {
   sqlite3 *db = (sqlite3 *)cls;
 
-  if (starts_with(url, "/static/")) {
+  if (starts_with(url, "/static")) {
     return get_static_file(conn, url);
+  }
+
+  if (starts_with(url, "/artist")) {
+    puts("bam");
+    return get_artist(conn, url, db);
   }
 
   return get_layout(conn);
@@ -118,6 +124,23 @@ int get_layout(struct MHD_Connection *conn) {
 
   MHD_add_response_header(response, "Content-Type", "text/html");
   ret = MHD_queue_response(conn, MHD_HTTP_OK, response);
+  MHD_destroy_response(response);
+
+  return ret;
+}
+
+int get_artist(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
+  const char *id =
+      MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
+  if (!id) return MHD_NO;
+
+  char* response_text = concat("<p>", id, "</p>");
+  struct MHD_Response *response = MHD_create_response_from_buffer(
+      strlen(response_text), response_text, MHD_RESPMEM_MUST_COPY);
+
+  MHD_add_response_header(response, "Content-Type", "text/html");
+
+  int ret = MHD_queue_response(conn, MHD_HTTP_OK, response);
   MHD_destroy_response(response);
 
   return ret;
