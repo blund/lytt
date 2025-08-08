@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include <microhttpd.h>
 #include <sqlite3.h>
@@ -21,10 +23,17 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
 int get_stylesheet(struct MHD_Connection *conn);
 int get_layout(struct MHD_Connection *conn);
 
+int running = 1;
+void handle_signal(int sig) {
+    running = 0;
+}
 
 int main() {
   sqlite3 *db;
   int result;
+
+  signal(SIGINT, handle_signal);
+  signal(SIGTERM, handle_signal);
 
   // Open the music database
   result = sqlite3_open("../musikk.sqlite", &db);
@@ -37,9 +46,12 @@ int main() {
 			    MHD_OPTION_END);
   assert(daemon != NULL, "failed to start http daemon");
 
-  // Keep alive
-  getchar(); 
+  // Pause this thread until killed
+  while (running) {
+    pause();
+  }
 
+  // End daemon on end
   MHD_stop_daemon(daemon);
   return 0;
 }
