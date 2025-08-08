@@ -12,18 +12,12 @@
 #define dprintf(fmt, args...)
 #endif
 
-#define bl_assert(expr)                                                        \
+#define bl_assert(expr, msg)						\
   ((expr) ? ((void)0)                                                          \
           : _release_assert(#expr, __FILE__, __LINE__,                         \
-                            __extension__ __PRETTY_FUNCTION__))
+                            __extension__ __PRETTY_FUNCTION__, msg))
 #undef assert
 #define assert bl_assert
-
-void _release_assert(const char *assertionExpr,
-		     const char *assertionFile,
-		     unsigned int assertionLine,
-		     const char* assertionFunction);
-
 
 typedef struct StringBuilder {
   char* buffer;
@@ -41,7 +35,7 @@ char* to_string(StringBuilder* b);
 
 int read_file(const char* filename, char** data);
 void _release_assert(const char *assertionExpr, const char *assertionFile,
-                    unsigned int assertionLine, const char *assertionFunction);
+		     unsigned int assertionLine, const char *assertionFunction, const char* msg);
 float random_float(float min, float max);
 
 #define array_size(x) sizeof((x))/sizeof((x)[0])
@@ -63,11 +57,10 @@ float random_float(float min, float max);
 
 
 
-void _release_assert(const char *assertionExpr,
-                    const char *assertionFile,
-                    unsigned int assertionLine,
-                    const char* assertionFunction) {
-  fprintf(stderr, "%s:%u: %s: Assertion `%s' failed.\n", assertionFile, assertionLine, assertionFunction, assertionExpr);
+void _release_assert(const char *assertionExpr, const char *assertionFile,
+                     unsigned int assertionLine, const char *assertionFunction,
+                     const char* msg) {
+  fprintf(stderr, "%s:%u: %s: Assertion `%s' failed: %s\n", assertionFile, assertionLine, assertionFunction, assertionExpr, msg);
   abort();
 }
 
@@ -98,13 +91,13 @@ int read_file(const char* filename, char** out) {
     }
 
     size_t bytesRead = fread(data, sizeof(char), size, fp);
-    assert(bytesRead == size);
+    assert(bytesRead == size, "incorrect byte count read");
 
     {
         // just to sanity check we have reached eof
         uint8_t _c;
-        assert(fread(&_c, sizeof(uint8_t), 1 /*numElements*/, fp) == 0);
-        assert(feof(fp));
+        assert(fread(&_c, sizeof(uint8_t), 1 /*numElements*/, fp) == 0, "");
+        assert(feof(fp), "");
     }
 
     fclose(fp);
