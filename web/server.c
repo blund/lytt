@@ -12,6 +12,7 @@
 #define BL_STRINGBUILDER_IMPL
 #include "../bl.h"
 
+#include "helpers.h"
 
 const int port = 8888;
 
@@ -20,7 +21,7 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
                         const char *upload_data, size_t *upload_data_size,
                         void **con_cls);
 
-int get_stylesheet(struct MHD_Connection *conn);
+int get_static_file(struct MHD_Connection *conn, const char* url);
 int get_layout(struct MHD_Connection *conn);
 
 int running = 1;
@@ -64,27 +65,41 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
                         void **con_cls) {
   sqlite3 *db = (sqlite3 *)cls;
 
-  if (strcmp(url, "/style.css") == 0) {
-    return get_stylesheet(conn);
+  if (starts_with(url, "/static/")) {
+    return get_static_file(conn, url);
   }
 
   return get_layout(conn);
 }
 
-// Returns the stylesheet for the website
-int get_stylesheet(struct MHD_Connection *conn) {
+int get_static_file(struct MHD_Connection *conn, const char *url) {
+  const char* filename = url + 1;
+
   struct MHD_Response *response;
   int ret;
 
   char* file;
-  int result = read_file("style.css", &file);
+  int result = read_file(filename, &file);
   if (!result) {
     ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, response);
     return ret;
   }
+
   int len = strlen(file);
   response = MHD_create_response_from_buffer(len, file, MHD_RESPMEM_MUST_FREE);
-  MHD_add_response_header(response, "Content-Type", "text/css");
+
+  char *mime = "text/plain";
+  if (has_extension(".css", filename)) {
+    mime = "text/css";
+  }
+  else if (has_extension(".js", filename)) {
+    mime = "text/javascript";
+  }
+  else {
+    assert(0, filename);
+  }
+
+  MHD_add_response_header(response, "Content-Type", mime);
   ret = MHD_queue_response(conn, MHD_HTTP_OK, response);
   MHD_destroy_response(response);
   return ret;
