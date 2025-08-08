@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <title>musikk</title>
+</head>
+
+<body>
+  <div class="overview">
+    <!-- Overview aside-->
+    <aside>
+      <h2>Artister</h2>
+      $artists
+      <hr>
+      <h2>Album</h2>
+      $albums
+    </aside>
+
+    <!-- Dynamic explorer-->
+    <main id="explore">
+      explore
+    </main>
+  </div>
+
+  <footer>
+    <!-- Track info -->
+    <div class="track-info">
+      <img src="album.jpg" alt="Album Cover">
+      <div>
+        <div class="track-title">Ingen sang</div>
+        <div class="track-artist">Ingen artist</div>
+      </div>
+    </div>
+
+    <!-- Audio player -->
+    <div class="audio-container">
+      <audio id="audio-player" controls>
+        <source id="player-source">
+        Your browser does not support the audio element.
+      </audio>
+    </div>
+  </footer>
+</body>
+</html>
