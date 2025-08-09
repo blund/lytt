@@ -16,8 +16,8 @@ int main() {
   assert(!result, sqlite3_errmsg(db));
 
   char *template;
-  result = read_file("template.layout.html", &template);
-  assert(result, "could not read layout.html");
+  result = read_file("templates/template.layout.html", &template);
+  assert(result, "could not read template.layout.html");
 
   char* artists = get_artist_list(db);
   result = string_replace(&template, "$artists", artists);
@@ -41,14 +41,16 @@ char* get_artist_list(sqlite3 *db) {
         return (char*)-1;
     }
 
+    char* artists_entry_template;
+    int result = read_file("templates/template.artists_entry.html", &artists_entry_template);
+    assert(result, "could not read template.artist_entry.html");
+
     StringBuilder *sb = new_builder(1024);
-    add_to(sb, "<ul>\n");
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
       sqlite3_int64 artist_id = sqlite3_column_int64(stmt, 0);
       const unsigned char *name = sqlite3_column_text(stmt, 1);
-      add_to(sb, "<li><a href=\"#\" fx-target=\"#explore\" fx-swap=\"innerHTML\" fx-action=\"/artist?id=%d\">%s</a></li>\n", artist_id, name);
+      add_to(sb, artists_entry_template, artist_id, name);
     }
-    add_to(sb, "</ul>\n");
     sqlite3_finalize(stmt);
     char *artist_list = to_string(sb);
 
@@ -65,15 +67,17 @@ char* get_album_list(sqlite3 *db) {
         return (char*)-1;
     }
 
-    StringBuilder *sb = new_builder(1024);
+    char* album_entry_template;
+    int result =
+        read_file("templates/template.albums_entry.html", &album_entry_template);
+    assert(result, "could not read template.albums_entry.html");
 
-    add_to(sb, "<ul>\n");
+    StringBuilder *sb = new_builder(1024);
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
       sqlite3_int64 album_id = sqlite3_column_int64(stmt, 0);
       const unsigned char *name = sqlite3_column_text(stmt, 1);
-      add_to(sb, "<li><a href=\"#\" fx-target=\"#explore\" fx-swap=\"innerHTML\" fx-action=\"/album?id=%d\">%s</a></li>\n", album_id, name);
+      add_to(sb, album_entry_template, album_id, name);
     }
-    add_to(sb, "</ul>\n");
     sqlite3_finalize(stmt);
     char *album_list = to_string(sb);
 
