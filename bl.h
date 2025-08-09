@@ -35,7 +35,7 @@ char* to_string(StringBuilder* b);
 
 int read_file(const char *filename, char **data);
 int write_file(char *filename, char *data);
-int string_replace(char **orig, char *rep, char *with);
+int string_replace(char *orig, char *rep, char *with, char** result);
 void _release_assert(const char *assertionExpr, const char *assertionFile,
 		     unsigned int assertionLine, const char *assertionFunction, const char* msg);
 float random_float(float min, float max);
@@ -108,29 +108,23 @@ int write_file(char *filename, char *data) {
   if (result < 0) return 0;
 }
 
-int string_replace(char **orig, char *rep, char *with) {
+int string_replace(char *orig, char *rep, char *with, char** result) {
   int rep_len  = strlen(rep);
   int with_len = strlen(with);
 
-  char *location = strstr(*orig, rep);
+  char *location = strstr(orig, rep);
 
   if (!location) return 0;
 
-  char *tmp = malloc(strlen(*orig) + (with_len - rep_len));
-  char* result = tmp;
+  char *tmp = malloc(strlen(orig) + (with_len - rep_len));
+  *result = tmp;
 
-  int replace_idx = location - *orig;
+  int replace_idx = location - orig;
 
   // copy everything before "rep"
-  tmp = strncpy(tmp, *orig, replace_idx) + replace_idx;
+  tmp = strncpy(tmp, orig, replace_idx) + replace_idx;
   tmp = strcpy(tmp, with) + with_len;
-  tmp = strcpy(tmp, *orig+replace_idx+rep_len);
-
-  tmp = *orig;
-  *orig = result;
-
-  free(tmp);
-  
+  tmp = strcpy(tmp, orig+replace_idx+rep_len);
   return 1;
 }
 

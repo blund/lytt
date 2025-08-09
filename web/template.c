@@ -20,13 +20,17 @@ int main() {
   assert(result, "could not read template.layout.html");
 
   char* artists = get_artist_list(db);
-  result = string_replace(&template, "$artists", artists);
+  result = string_replace(template, "$artists", artists, &template);
   assert(result, "could not patch artists in template");
 
+  printf("%s\n", template);
+  
   char* albums = get_album_list(db);
-  result = string_replace(&template, "$albums", albums);
+  result = string_replace(template, "$albums", albums, &template);
   assert(result, "could not patch albums in template");
   if (!result) return 0;
+
+  printf("%s\n", template);
 
   template = concat("<!-- generated! do not modify -->", template);
   write_file("layout.html", template);
