@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <ctype.h>
@@ -114,7 +115,7 @@ int get_static_file(struct MHD_Connection *conn, const char *url) {
   else if (has_extension(".js", filename))  mime = "text/javascript";
   else assert(0, filename);
 
-  return ok(file, size, mime, conn);
+  return ok(file, size, mime, conn, PERSIST);
 }
 
 // Returns the main html file for the website
@@ -126,7 +127,7 @@ int get_layout(struct MHD_Connection *conn) {
   int size = read_file("layout.html", &page);
   assert(size != 0, "could not read layout.html");
 
-  return ok(page, size, "text/html", conn);
+  return ok(page, size, "text/html", conn, FREE);
 }
 
 int get_artist(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
@@ -135,7 +136,7 @@ int get_artist(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
   if (!id) return MHD_NO;
 
   char *content = concat("<p>", id, "</p>");
-  return ok(content, strlen(content), "text/html", conn);
+  return ok(content, strlen(content), "text/html", conn, FREE);
 }
 
 
@@ -146,7 +147,7 @@ int get_album(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
   if (!id) return MHD_NO;
 
   char *content = build_songs(atoi(id), db);
-  return ok(content, strlen(content), "text/html", conn);
+  return ok(content, strlen(content), "text/html", conn, FREE);
 }
 
 int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
@@ -171,7 +172,7 @@ int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
     mime = "image/png";
   }
 
-  return ok(file, size, mime, conn);
+  return ok(file, size, mime, conn, FREE);
 }
 
 char *make_song(const unsigned char *song_name, int id) {
@@ -262,7 +263,7 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
     free(title);
     free(artist);
 
-    return ok(content, strlen(content), "text/html", conn);
+    return ok(content, strlen(content), "text/html", conn, PERSIST);
 }
 
 enum MHD_Result music_handler(struct MHD_Connection *conn, const char *url) {
