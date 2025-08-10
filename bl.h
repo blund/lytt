@@ -35,7 +35,7 @@ char* to_string(StringBuilder* b);
 
 int read_file(const char *filename, char **data);
 int write_file(char *filename, char *data);
-int string_replace(char *orig, char *rep, char *with, char** result);
+int string_replace(char *orig, const char *rep, const char *with, char** result);
 void _release_assert(const char *assertionExpr, const char *assertionFile,
 		     unsigned int assertionLine, const char *assertionFunction, const char* msg);
 float random_float(float min, float max);
@@ -108,7 +108,7 @@ int write_file(char *filename, char *data) {
   if (result < 0) return 0;
 }
 
-int string_replace(char *orig, char *rep, char *with, char** result) {
+int string_replace(char *orig, const char *rep, const char *with, char** result) {
   int rep_len  = strlen(rep);
   int with_len = strlen(with);
 
