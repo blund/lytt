@@ -13,12 +13,11 @@ char* has_extension(const char *ext, const char *filename) {
 
 int ok(char *content, int size, char *mime, struct MHD_Connection *conn) {
   struct MHD_Response *response = MHD_create_response_from_buffer(
-      size, content, MHD_RESPMEM_MUST_COPY);
+      size, content, MHD_RESPMEM_MUST_FREE);
 
   MHD_add_response_header(response, "Content-Type", mime);
   int ret = MHD_queue_response(conn, MHD_HTTP_OK, response);
   MHD_destroy_response(response);
-
   return ret;
 }
 
