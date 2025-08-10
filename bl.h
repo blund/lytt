@@ -113,18 +113,30 @@ int string_replace(char *orig, char *rep, char *with, char** result) {
   int with_len = strlen(with);
 
   char *location = strstr(orig, rep);
-
   if (!location) return 0;
 
-  char *tmp = malloc(strlen(orig) + (with_len - rep_len));
+  size_t orig_len = strlen(orig);
+  size_t new_len = orig_len + with_len - rep_len;
+
+  char *tmp = malloc(strlen(orig) + (with_len - rep_len)+1);
   *result = tmp;
 
   int replace_idx = location - orig;
 
-  // copy everything before "rep"
-  tmp = strncpy(tmp, orig, replace_idx) + replace_idx;
-  tmp = strcpy(tmp, with) + with_len;
-  tmp = strcpy(tmp, orig+replace_idx+rep_len);
+  // Copy everything before 'rep'
+  memcpy(tmp, orig, replace_idx);
+  // Copy 'with' to the position of rep
+  memcpy(tmp+replace_idx, with, with_len);
+  // Copy everything after 'rep' to after the new 'with'
+  memcpy(tmp+replace_idx+with_len, orig+replace_idx+rep_len,
+         orig_len-replace_idx-rep_len);
+
+  // Null terminate
+  tmp[new_len] = '\0';
+
+  if (orig == *result) free(orig);
+  *result = tmp;
+
   return 1;
 }
 
