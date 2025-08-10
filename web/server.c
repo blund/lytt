@@ -25,6 +25,7 @@ int get_static_file(struct MHD_Connection *conn, const char* url);
 int get_layout(struct MHD_Connection *conn);
 int get_artist(struct MHD_Connection *conn, const char *url, sqlite3* db);
 int get_album(struct MHD_Connection *conn, const char *url, sqlite3* db);
+int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db);
 
 
 enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3 *db);
@@ -78,19 +79,20 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
   if (starts_with(url, "/static"))
     return get_static_file(conn, url);
 
+  if (starts_with(url, "/album-cover"))
+    return get_album_cover(conn, url, db);
+
   if (starts_with(url, "/album"))
     return get_album(conn, url, db);
 
   if (starts_with(url, "/artist"))
     return get_artist(conn, url, db);
 
-  if (starts_with(url, "/play")) {
+  if (starts_with(url, "/play"))
     return play_song(conn, db);
-  }
 
-  if (starts_with(url, "/musikk/")) {
+  if (starts_with(url, "/musikk/"))
     return music_handler(conn, url);
-  }
 
   return get_layout(conn);
 }
@@ -99,8 +101,8 @@ int get_static_file(struct MHD_Connection *conn, const char *url) {
   const char* filename = url + 1;
 
   char* file;
-  int result = read_file(filename, &file);
-  if (!result) {
+  int size = read_file(filename, &file);
+  if (!size) {
     struct MHD_Response *response;
     int ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, response);
     MHD_destroy_response(response);
@@ -112,7 +114,7 @@ int get_static_file(struct MHD_Connection *conn, const char *url) {
   else if (has_extension(".js", filename))  mime = "text/javascript";
   else assert(0, filename);
 
-  return ok(file, mime, conn);
+  return ok(file, size, mime, conn);
 }
 
 // Returns the main html file for the website
@@ -121,10 +123,10 @@ int get_layout(struct MHD_Connection *conn) {
   int ret;
 
   char* page;
-  int result = read_file("layout.html", &page);
-  assert(result != 0, "could not read layout.html");
+  int size = read_file("layout.html", &page);
+  assert(size != 0, "could not read layout.html");
 
-  return ok(page, "text/html", conn);
+  return ok(page, size, "text/html", conn);
 }
 
 int get_artist(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
@@ -133,8 +135,10 @@ int get_artist(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
   if (!id) return MHD_NO;
 
   char *content = concat("<p>", id, "</p>");
-  return ok(content, "text/html", conn);
+  return ok(content, strlen(content), "text/html", conn);
 }
+
+
 
 int get_album(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
   const char *id =
@@ -142,7 +146,32 @@ int get_album(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
   if (!id) return MHD_NO;
 
   char *content = build_songs(atoi(id), db);
-  return ok(content, "text/html", conn);
+  return ok(content, strlen(content), "text/html", conn);
+}
+
+int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
+  const char *id_str =
+      MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
+  if (!id_str) return MHD_NO;
+
+  int id = atoi(id_str);
+  
+  sqlite3_stmt *stmt =
+      query_by_id("SELECT cover FROM albums WHERE id = ?", id, db);
+  char *path = copy(sqlite3_column_text(stmt, 0));
+  sqlite3_finalize(stmt);
+
+  char *file;
+  int size = read_file(concat("../", path), &file);
+  if (!size)
+    return MHD_NO;
+
+  char *mime = "image/jpeg";
+  if (has_extension(".png", path)) {
+    mime = "image/png";
+  }
+
+  return ok(file, size, mime, conn);
 }
 
 char *make_song(const unsigned char *song_name, int id) {
@@ -167,18 +196,23 @@ char *build_songs(int album_id, sqlite3* db) {
     sqlite3_finalize(stmt);
    
     StringBuilder *sb = new_builder(1024);
-    add_to(sb, "<div>\n");
-    add_to(sb, "<h3>%s</h2>\n", artist);
-    add_to(sb, "<h2>%s</h2>\n", album_title);
+    add_to(sb, "<div class=\"album-info\">\n");
+    add_to(sb, "<img src=\"/album-cover?id=%d\" alt=\"Album Cover\">", album_id);
+    add_to(sb, "<div><h3>%s</h2>\n", artist);
+    add_to(sb, "<h2>%s</h2></div>\n", album_title);
     add_to(sb, "</div>\n");
     add_to(sb, "<ul>\n");
 
-    stmt = query_by_id("SELECT id, title FROM songs WHERE album_id = ? ORDER BY title", album_id, db);
-    db_iterate(stmt) {
+    stmt = query_by_id(
+        "SELECT id, title FROM songs WHERE album_id = ? ORDER BY track_number",
+        album_id, db);
+    if (!stmt) return "";
+
+    do {
       int id = sqlite3_column_int(stmt, 0);
       const unsigned char *name = sqlite3_column_text(stmt, 1);
       add_to(sb, "<li>%s</li>\n", make_song(name, id));
-    }
+    } db_iterate(stmt);
 
     add_to(sb, "</ul>\n");
     sqlite3_finalize(stmt);
@@ -199,8 +233,9 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
     sqlite3_int64 song_id = strtoll(song_id_str, NULL, 10);
 
     sqlite3_stmt *stmt =
-        query_by_id("SELECT files.path, songs.title, artists.name "
+        query_by_id("SELECT files.path, songs.title, artists.name, albums.id "
                     "FROM songs "
+                    "JOIN albums ON songs.album_id = albums.id "
                     "JOIN artists ON songs.artist_id = artists.id "
                     "JOIN files ON songs.id = files.song_id "
                     "WHERE songs.id = ?",
@@ -209,6 +244,7 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
     char* path   = copy(sqlite3_column_text(stmt, 0));
     char* title  = copy(sqlite3_column_text(stmt, 1));
     char* artist = copy(sqlite3_column_text(stmt, 2));
+    int cover    = sqlite3_column_int64(stmt, 3);
     sqlite3_finalize(stmt);
 
     char* song_template;
@@ -219,60 +255,60 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
     // Create HTML <source> tag to return
     char content[1024];
     snprintf(content, sizeof(content),
-	       song_template, "", artist, title, path);
+	       song_template, cover, artist, title, path);
     
     free(song_template);
     free(path);
     free(title);
     free(artist);
 
-    return ok(content, "text/html", conn);
+    return ok(content, strlen(content), "text/html", conn);
 }
 
 enum MHD_Result music_handler(struct MHD_Connection *conn, const char *url) {
-    char filepath[512];
-    snprintf(filepath, sizeof(filepath), "../.%s", url);  // Note: still unsafe path handling
+  char filepath[512];
+  snprintf(filepath, sizeof(filepath), "../.%s", url);  // Note: still unsafe path handling
 
-    int fd = open(filepath, O_RDONLY);
-    if (fd == -1) return MHD_NO;
+  int fd = open(filepath, O_RDONLY);
+  if (fd == -1) return MHD_NO;
 
-    struct stat st;
-    if (fstat(fd, &st) == -1) {
-      close(fd);
-      return MHD_NO;
-    }
+  struct stat st;
+  if (fstat(fd, &st) == -1) {
+    close(fd);
+    return MHD_NO;
+  }
 
-    // Check for Range request
-    const char *range_header = MHD_lookup_connection_value(conn, MHD_HEADER_KIND, "Range");
-    struct MHD_Response *response;
-    int ret;
+  // Check for Range request
+  const char *range_header = MHD_lookup_connection_value(conn, MHD_HEADER_KIND, "Range");
+  struct MHD_Response *response;
+  int ret;
 
-    if (range_header && strncmp(range_header, "bytes=", 6) == 0) {
-      off_t start = atoll(range_header + 6);
-      off_t length = st.st_size - start;
+  if (range_header && strncmp(range_header, "bytes=", 6) == 0) {
+    off_t start = atoll(range_header + 6);
+    off_t length = st.st_size - start;
 
-      response = MHD_create_response_from_fd_at_offset64(length, fd, start);
-      MHD_add_response_header(response, "Content-Type", "audio/ogg");
-      MHD_add_response_header(response, "Accept-Ranges", "bytes");
+    response = MHD_create_response_from_fd_at_offset64(length, fd, start);
+    MHD_add_response_header(response, "Content-Type", "audio/ogg");
+    MHD_add_response_header(response, "Accept-Ranges", "bytes");
 
-      char content_range[128];
-      snprintf(content_range, sizeof(content_range),
-	       "bytes %lld-%lld/%lld",
-	       (long long)start,
-	       (long long)(st.st_size - 1),
-	       (long long)st.st_size);
-      MHD_add_response_header(response, "Content-Range", content_range);
+    char content_range[128];
+    snprintf(content_range, sizeof(content_range),
+	     "bytes %lld-%lld/%lld",
+	     (long long)start,
+	     (long long)(st.st_size - 1),
+	     (long long)st.st_size);
+    MHD_add_response_header(response, "Content-Range", content_range);
 
-      ret = MHD_queue_response(conn, MHD_HTTP_PARTIAL_CONTENT, response); // 206
-    } else {
-      response = MHD_create_response_from_fd_at_offset64(st.st_size, fd, 0);
-      MHD_add_response_header(response, "Content-Type", "audio/ogg");
-      MHD_add_response_header(response, "Accept-Ranges", "bytes");
-      ret = MHD_queue_response(conn, MHD_HTTP_OK, response); // 200
-    }
+    ret = MHD_queue_response(conn, MHD_HTTP_PARTIAL_CONTENT, response); // 206
+  } else {
+    response = MHD_create_response_from_fd_at_offset64(st.st_size, fd, 0);
+    MHD_add_response_header(response, "Content-Type", "audio/ogg");
+    MHD_add_response_header(response, "Accept-Ranges", "bytes");
+    ret = MHD_queue_response(conn, MHD_HTTP_OK, response); // 200
+  }
 
-    MHD_destroy_response(response);
-    return ret;
+  MHD_destroy_response(response);
+  return ret;
 }
 
 sqlite3_stmt* query_by_id(char *query, int id, sqlite3* db) {

@@ -17,16 +17,18 @@ char* init_artists =
 char *init_albums =
   "create table albums("
   "id        integer primary key,"
-  "title      text not null,"
+  "title     text not null,"
+  "cover     text not null,"
   "artist_id integer," 
   "foreign key(artist_id) references artist(id)"
   ");";
 
 char *init_songs = "create table songs("
-  "id        integer primary key,"
-  "title     text not null,"
-  "artist_id integer,"
-  "album_id  integer,"
+  "id            integer primary key,"
+  "title         text not null,"
+  "track_number  integer,"
+  "artist_id     integer,"
+  "album_id      integer,"
   "foreign key(artist_id) references artist(id),"
   "foreign key(album_id)  references album(id),"
   "UNIQUE(title, artist_id, album_id)"
@@ -95,10 +97,10 @@ sqlite3_int64 insert_artist(sqlite3 *db, char *artist) {
   return artist_id;
 }
 
-sqlite3_int64 insert_album(sqlite3 *db, sqlite3_int64 artist_id, char *album) {
+sqlite3_int64 insert_album(sqlite3 *db, sqlite3_int64 artist_id, char *album, char* cover) {
   sqlite3_stmt *stmt;
   const char *sql_insert_album =
-      "INSERT INTO albums (title, artist_id) VALUES (?, ?);";
+      "INSERT INTO albums (title, artist_id, cover) VALUES (?, ?, ?);";
   int rc;
 
   rc = sqlite3_prepare_v2(db, sql_insert_album, -1, &stmt, NULL);
@@ -106,6 +108,8 @@ sqlite3_int64 insert_album(sqlite3 *db, sqlite3_int64 artist_id, char *album) {
   rc = sqlite3_bind_text(stmt, 1, album, -1, SQLITE_TRANSIENT);
   check_sqlite(db, rc, "bind");
   rc = sqlite3_bind_int64(stmt, 2, artist_id);
+  check_sqlite(db, rc, "bind");
+  rc = sqlite3_bind_text(stmt, 3, cover, -1, SQLITE_TRANSIENT);
   check_sqlite(db, rc, "bind");
   sqlite3_step(stmt); // Execute
   rc = sqlite3_finalize(stmt);
@@ -115,7 +119,7 @@ sqlite3_int64 insert_album(sqlite3 *db, sqlite3_int64 artist_id, char *album) {
   return album_id;
 }
 
-sqlite3_int64 insert_or_get_song(sqlite3 *db, const char *title,
+sqlite3_int64 insert_or_get_song(sqlite3 *db, const char *title, int track_number,
                                  sqlite3_int64 artist_id,
                                  sqlite3_int64 album_id) {
     sqlite3_stmt *stmt;
@@ -144,13 +148,14 @@ sqlite3_int64 insert_or_get_song(sqlite3 *db, const char *title,
 
     // Insert if not found
     const char *sql_insert =
-        "INSERT INTO songs (title, artist_id, album_id) VALUES (?, ?, ?);";
+        "INSERT INTO songs (title, track_number, artist_id, album_id) VALUES (?, ?, ?, ?);";
     rc = sqlite3_prepare_v2(db, sql_insert, -1, &stmt, NULL);
     check_sqlite(db, rc, "prepare insert");
 
     sqlite3_bind_text(stmt, 1, title, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int64(stmt, 2, artist_id);
-    sqlite3_bind_int64(stmt, 3, album_id);
+    sqlite3_bind_int64(stmt, 2, track_number);
+    sqlite3_bind_int64(stmt, 3, artist_id);
+    sqlite3_bind_int64(stmt, 4, album_id);
 
     rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {

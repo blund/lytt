@@ -45,7 +45,14 @@ int main(int argc, char* argv[]) {
       printf(" > %s\n", album_title);
 
       char *album_dir = concat(artist_dir, "/", album_title);
-     sqlite3_int64 album_id = insert_album(db, artist_id, album_title);
+
+      struct dirent **covers;
+      int cover_count = scandir(album_dir, &covers, select_image_file, NULL);
+
+      char *cover = "";
+      if (cover_count) cover = covers[0]->d_name;
+
+      sqlite3_int64 album_id = insert_album(db, artist_id, album_title, concat(album_dir, "/", cover));
 
       struct dirent **formats;
       int format_count = scandir(album_dir, &formats, select_dirs, alphasort);
@@ -75,7 +82,7 @@ int main(int argc, char* argv[]) {
 	  TagLib_Tag *tag = taglib_file_tag(file);
 
 	  sqlite3_int64 song_id =
-	    insert_or_get_song(db, taglib_tag_title(tag), artist_id, album_id);
+	    insert_or_get_song(db, taglib_tag_title(tag), taglib_tag_track(tag), artist_id, album_id);
 
           sqlite3_int64 file_id = insert_file(db, song_path, format, song_id);
 

@@ -6,6 +6,7 @@ document.addEventListener("fx:swapped", (evt)=>{
 
 	document.getElementById('track-title').textContent = source.dataset.title;
 	document.getElementById('track-artist').textContent = source.dataset.artist;
+	document.getElementById('track-cover').src = source.dataset.cover;
 
 	player.load();
 	player.play();

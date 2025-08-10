@@ -83,7 +83,7 @@ int read_file(const char* filename, char** out) {
     data[size] = '\0';
 
     size_t bytesRead = fread(data, sizeof(char), size, fp);
-    assert(bytesRead == size, "incorrect byte count read");
+    if (bytesRead != size) return 0;
 
     // just to sanity check we have reached eof
     uint8_t _c;
