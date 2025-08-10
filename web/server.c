@@ -92,10 +92,6 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
     return music_handler(conn, url);
   }
 
-
-
-
-
   return get_layout(conn);
 }
 
@@ -162,99 +158,73 @@ char *build_songs(int album_id, sqlite3* db) {
     sqlite3_stmt *stmt;
     int rc;
 
-    stmt = query_by_id("SELECT title FROM albums WHERE id = ?;", album_id, db);
-    char* title = copy(sqlite3_column_text(stmt, 0));
+    stmt = query_by_id("SELECT albums.title, artists.name "
+                       "FROM albums "
+		       "JOIN artists ON albums.artist_id = artists.id "
+                       "WHERE albums.id = ?;", album_id, db);
+    char* album_title = copy(sqlite3_column_text(stmt, 0));
+    char* artist = copy(sqlite3_column_text(stmt, 1));
     sqlite3_finalize(stmt);
-
-    stmt = query_by_id("SELECT artists.name "
-                  "FROM albums "
-                  "JOIN artists ON albums.artist_id = artists.id "
-                  "WHERE albums.id = ?;", album_id, db);
-    char* artist = copy(sqlite3_column_text(stmt, 0));
-    sqlite3_finalize(stmt);
-
-    
-    const char *sql =
-        "SELECT id, title FROM songs WHERE album_id = ? ORDER BY title;";
-
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQLite prepare failed: %s\n", sqlite3_errmsg(db));
-        return (char*)-1;
-    }
-
-    // Bind the artist_id to the first placeholder
-    rc = sqlite3_bind_int64(stmt, 1, album_id);
-    if (rc != SQLITE_OK) {
-      fprintf(stderr, "SQLite bind failed: %s\n", sqlite3_errmsg(db));
-      sqlite3_finalize(stmt);
-      return (char*)-1;
-    }
-
+   
     StringBuilder *sb = new_builder(1024);
     add_to(sb, "<div>\n");
     add_to(sb, "<h3>%s</h2>\n", artist);
-    add_to(sb, "<h2>%s</h2>\n", title);
+    add_to(sb, "<h2>%s</h2>\n", album_title);
     add_to(sb, "</div>\n");
     add_to(sb, "<ul>\n");
 
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        int id = sqlite3_column_int(stmt, 0);
-        const unsigned char *name = sqlite3_column_text(stmt, 1);
-        add_to(sb, "<li>%s</li>\n", make_song(name, id));
+    stmt = query_by_id("SELECT id, title FROM songs WHERE album_id = ? ORDER BY title", album_id, db);
+    db_iterate(stmt) {
+      int id = sqlite3_column_int(stmt, 0);
+      const unsigned char *name = sqlite3_column_text(stmt, 1);
+      add_to(sb, "<li>%s</li>\n", make_song(name, id));
     }
 
     add_to(sb, "</ul>\n");
     sqlite3_finalize(stmt);
 
     char *album_list = to_string(sb);
-    free_builder(sb);
 
+    free(album_title);
+    free(artist);
+
+    free_builder(sb);
     return album_list;
 }
 
-char *get_file_path_by_song_id(sqlite3 *db, sqlite3_int64 song_id) {
-    sqlite3_stmt *stmt;
-    const char *sql = "SELECT path FROM files WHERE song_id = ? LIMIT 1;";
-
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "prepare failed: %s\n", sqlite3_errmsg(db));
-        return NULL;
-    }
-
-    sqlite3_bind_int64(stmt, 1, song_id);
-
-    char *path = NULL;
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        const unsigned char *raw_path = sqlite3_column_text(stmt, 0);
-        path = strdup((const char *)raw_path); // make a copy you can return
-    }
-
-    sqlite3_finalize(stmt);
-    return path; // caller must free(path)
-}
-
 enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
-// Check for /play
     const char *song_id_str = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "song_id");
-    if (!song_id_str) {
-      return MHD_NO;
-    }
+    if (!song_id_str) return MHD_NO;
 
     sqlite3_int64 song_id = strtoll(song_id_str, NULL, 10);
 
-    // Lookup file path by song_id
-    char *filepath = get_file_path_by_song_id(db, song_id); // You already have this function
-    if (!filepath) {
-      return MHD_NO;
-    }
+    sqlite3_stmt *stmt =
+        query_by_id("SELECT files.path, songs.title, artists.name "
+                    "FROM songs "
+                    "JOIN artists ON songs.artist_id = artists.id "
+                    "JOIN files ON songs.id = files.song_id "
+                    "WHERE songs.id = ?",
+                    song_id, db);
+
+    char* path   = copy(sqlite3_column_text(stmt, 0));
+    char* title  = copy(sqlite3_column_text(stmt, 1));
+    char* artist = copy(sqlite3_column_text(stmt, 2));
+    sqlite3_finalize(stmt);
+
+    char* song_template;
+    int result =
+        read_file("templates/template.song_entry.html", &song_template);
+    assert(result, "could not read template.albums_entry.html");
 
     // Create HTML <source> tag to return
     char content[1024];
     snprintf(content, sizeof(content),
-             "<source id=\"player-source\" src=\"/%s\" type=\"audio/ogg\">", filepath);
-    free(filepath);
+	       song_template, "", artist, title, path);
+    
+    free(song_template);
+    free(path);
+    free(title);
+    free(artist);
 
     return ok(content, "text/html", conn);
 }

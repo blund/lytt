@@ -90,6 +90,7 @@ footer {
 .track-info {
     display: flex;
     align-items: center;
+    width: 30vh;
     gap: 1rem;
 }
 .track-info img {

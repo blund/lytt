@@ -22,9 +22,9 @@ int ok(char *content, char *mime, struct MHD_Connection *conn) {
   return ret;
 }
 
-char *copy(const char *string) {
-  char* dest = malloc(strlen(string) + 1);
-  strcpy(dest, string);
+char *copy(const unsigned char *string) {
+  char* dest = malloc(strlen((char*)string) + 1);
+  strcpy(dest, (char*)string);
 
   return dest;
 }
