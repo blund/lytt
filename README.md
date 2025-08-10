@@ -1,2 +1,4 @@
 # Musikk
-A small, simple, self hosted music library
+A small, files-first music database + simple, hypermedia driven streaming web-app.
+
+Built with sqlite, libmicrohttpd and fixi.js.
