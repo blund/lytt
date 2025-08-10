@@ -32,7 +32,7 @@ int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db);
 enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3 *db);
 enum MHD_Result music_handler(struct MHD_Connection *conn, const char *url);
 
-char *build_songs(int album_id, sqlite3* db);
+char *build_song_list(int album_id, sqlite3* db);
 
 sqlite3_stmt* query_by_id(char *query, int id, sqlite3* db);
 
@@ -146,8 +146,36 @@ int get_album(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
       MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
   if (!id) return MHD_NO;
 
-  char *content = build_songs(atoi(id), db);
-  return ok(content, strlen(content), "text/html", conn, FREE);
+  sqlite3_stmt *stmt;
+  int rc;
+
+  int album_id = atoi(id);
+  stmt = query_by_id("SELECT albums.title, artists.name "
+                     "FROM albums "
+                     "JOIN artists ON albums.artist_id = artists.id "
+                     "WHERE albums.id = ?;",
+                     album_id, db);
+
+  char* album_title = copy(sqlite3_column_text(stmt, 0));
+  char* artist = copy(sqlite3_column_text(stmt, 1));
+  sqlite3_finalize(stmt);
+
+  char *album_overview;
+  int size =
+    read_file("templates/album_overview.html", &album_overview);
+  if (size < 0) return MHD_NO;
+
+  char* song_list = build_song_list(album_id, db);
+  string_replace(album_overview, "$album_id", id, &album_overview);
+  string_replace(album_overview, "$artist", artist, &album_overview);
+  string_replace(album_overview, "$album_title", album_title, &album_overview);
+  string_replace(album_overview, "$song_list", song_list, &album_overview);
+
+  free(album_title);
+  free(artist);
+  free(song_list);
+
+  return ok(album_overview, strlen(album_overview), "text/html", conn, FREE);
 }
 
 int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
@@ -164,8 +192,7 @@ int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
 
   char *file;
   int size = read_file(concat("../", path), &file);
-  if (!size)
-    return MHD_NO;
+  if (!size) return MHD_NO;
 
   char *mime = "image/jpeg";
   if (has_extension(".png", path)) {
@@ -176,55 +203,43 @@ int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
 }
 
 char *make_song(const unsigned char *song_name, int id) {
-  StringBuilder *sb = new_builder(128);
-  add_to(sb, "<a href=# fx-trigger=\"click\" fx-action=\"/play?song_id=%d\" fx-target=\"#player-source\" fx-swap=\"outerHTML\" >%s</a>", id, song_name);
+  static char *song_template;
 
-  char* button = to_string(sb);
-  free_builder(sb);
-  return button;
+  int size = read_file("templates/song.html", &song_template);
+  assert(size, "failed to read song.html");
+
+  char id_str[32];
+  snprintf(id_str, 32, "%d", id);
+  string_replace(song_template, "$song_id", id_str, &song_template);
+  string_replace(song_template, "$song_name", (char *)song_name, &song_template);
+
+  return song_template;
 }
 
-char *build_songs(int album_id, sqlite3* db) {
+char *build_song_list(int album_id, sqlite3* db) {
     sqlite3_stmt *stmt;
     int rc;
 
-    stmt = query_by_id("SELECT albums.title, artists.name "
-                       "FROM albums "
-		       "JOIN artists ON albums.artist_id = artists.id "
-                       "WHERE albums.id = ?;", album_id, db);
-    char* album_title = copy(sqlite3_column_text(stmt, 0));
-    char* artist = copy(sqlite3_column_text(stmt, 1));
-    sqlite3_finalize(stmt);
-   
-    StringBuilder *sb = new_builder(1024);
-    add_to(sb, "<div class=\"album-info\">\n");
-    add_to(sb, "<img src=\"/album-cover?id=%d\" alt=\"Album Cover\">", album_id);
-    add_to(sb, "<div><h3>%s</h2>\n", artist);
-    add_to(sb, "<h2>%s</h2></div>\n", album_title);
-    add_to(sb, "</div>\n");
-    add_to(sb, "<ul>\n");
+    stmt = query_by_id("SELECT id, title "
+                       "FROM songs "
+                       "WHERE album_id = ? "
+                       "ORDER BY track_number",
+                       album_id, db);
 
-    stmt = query_by_id(
-        "SELECT id, title FROM songs WHERE album_id = ? ORDER BY track_number",
-        album_id, db);
     if (!stmt) return "";
 
+    StringBuilder *sb = new_builder(1024);
     do {
       int id = sqlite3_column_int(stmt, 0);
       const unsigned char *name = sqlite3_column_text(stmt, 1);
-      add_to(sb, "<li>%s</li>\n", make_song(name, id));
+      add_to(sb, "%s\n", make_song(name, id));
     } db_iterate(stmt);
-
-    add_to(sb, "</ul>\n");
     sqlite3_finalize(stmt);
 
-    char *album_list = to_string(sb);
-
-    free(album_title);
-    free(artist);
+    char *song_list = to_string(sb);
 
     free_builder(sb);
-    return album_list;
+    return song_list;
 }
 
 enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
@@ -250,8 +265,8 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
 
     char* song_template;
     int result =
-        read_file("templates/template.song_entry.html", &song_template);
-    assert(result, "could not read template.albums_entry.html");
+        read_file("templates/song_source.html", &song_template);
+    assert(result, "could not read song_source.html");
 
     // Create HTML <source> tag to return
     char content[1024];

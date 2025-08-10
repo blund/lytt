@@ -16,7 +16,7 @@ int main() {
   assert(!result, sqlite3_errmsg(db));
 
   char *template;
-  result = read_file("templates/template.layout.html", &template);
+  result = read_file("templates/layout.html", &template);
   assert(result, "could not read template.layout.html");
 
   char* artists = get_artist_list(db);
@@ -42,8 +42,8 @@ char* get_artist_list(sqlite3 *db) {
     }
 
     char* artists_entry_template;
-    int result = read_file("templates/template.artists_entry.html", &artists_entry_template);
-    assert(result, "could not read template.artist_entry.html");
+    int result = read_file("templates/artists_entry.html", &artists_entry_template);
+    assert(result, "could not read artist_entry.html");
 
     StringBuilder *sb = new_builder(1024);
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
@@ -69,8 +69,8 @@ char* get_album_list(sqlite3 *db) {
 
     char* album_entry_template;
     int result =
-        read_file("templates/template.albums_entry.html", &album_entry_template);
-    assert(result, "could not read template.albums_entry.html");
+        read_file("templates/albums_entry.html", &album_entry_template);
+    assert(result, "could not read albums_entry.html");
 
     StringBuilder *sb = new_builder(1024);
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
