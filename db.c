@@ -19,8 +19,7 @@ char *init_albums =
   "id          integer primary key,"
   "title       text not null,"
   "cover       text not null,"
-  "cover-small text not null,"
-  "artist_id integer," 
+  "artist_id   integer," 
   "foreign key(artist_id) references artist(id)"
   ");";
 
