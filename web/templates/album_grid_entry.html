@@ -1,0 +1,10 @@
+<a class="album-card" href="/album?id=$album_id"
+   fx-trigger="click"
+   fx-action="/album?id=$album_id"
+   fx-target="#explore"
+   fx-swap="innerHTML"
+   >
+  <img src="/album-cover?id=$album_id" alt="$album_title">
+  <div class="title">$album_title</div>
+  <div class="artist">$artist_name</div>
+</a>
