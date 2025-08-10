@@ -24,6 +24,7 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
 
 int get_static_file(struct MHD_Connection *conn, const char* url);
 int get_layout(struct MHD_Connection *conn);
+int get_library_grid(struct MHD_Connection *conn, const char *url, sqlite3* db);
 int get_artist(struct MHD_Connection *conn, const char *url, sqlite3* db);
 int get_album(struct MHD_Connection *conn, const char *url, sqlite3* db);
 int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db);
@@ -33,6 +34,7 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3 *db);
 enum MHD_Result music_handler(struct MHD_Connection *conn, const char *url);
 
 char *build_song_list(int album_id, sqlite3* db);
+char* build_library_grid(sqlite3 *db);
 
 sqlite3_stmt* query_by_id(char *query, int id, sqlite3* db);
 
@@ -76,6 +78,9 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
                         const char *upload_data, size_t *upload_data_size,
                         void **con_cls) {
   sqlite3 *db = (sqlite3 *)cls;
+
+  if (starts_with(url, "/library"))
+    return get_library_grid(conn, url, db);
 
   if (starts_with(url, "/static"))
     return get_static_file(conn, url);
@@ -130,13 +135,73 @@ int get_layout(struct MHD_Connection *conn) {
   return ok(page, size, "text/html", conn, FREE);
 }
 
+// Returns the main html file for the website
+int get_library_grid(struct MHD_Connection *conn, const char *url, sqlite3* db) {
+  struct MHD_Response *response;
+  int ret;
+
+  char* library_grid = build_library_grid(db);
+  return ok(library_grid, strlen(library_grid), "text/html", conn, FREE);
+}
+
+char* get_album_grid(int artist_id, sqlite3 *db) {
+  sqlite3_stmt *stmt;
+  int rc;
+
+  char* album_grid;
+  int size =
+    read_file("templates/album_grid.html", &album_grid);
+  assert(size, "could not read album_grid.html");
+
+  char* album_grid_entry;
+  size =
+    read_file("templates/album_grid_entry.html", &album_grid_entry);
+  assert(size, "could not read album_grid_entry.html");
+
+  stmt = query_by_id("SELECT albums.id, albums.title, artists.name "
+		     "FROM albums "
+		     "JOIN artists ON albums.artist_id = artists.id "
+		     "WHERE albums.artist_id = ? "
+		     "ORDER BY albums.title", artist_id, db);
+
+  StringBuilder *sb = new_builder(1024);
+  do {
+    sqlite3_int64 album_id = sqlite3_column_int64(stmt, 0);
+    const char *album_title = (char*)sqlite3_column_text(stmt, 1);
+    const char *artist_name = (char*)sqlite3_column_text(stmt, 2);
+
+    char *entry = copy(album_grid_entry);
+
+    char album_id_str[8];
+    snprintf(album_id_str, 8, "%lld", album_id);
+
+    string_replace(entry, "$album_id", album_id_str,  &entry);
+    string_replace(entry, "$album_title", album_title, &entry);
+    string_replace(entry, "$artist_name", artist_name, &entry);
+
+    add_to(sb, entry);
+  }
+  db_iterate(stmt);
+
+  sqlite3_finalize(stmt);
+  char *album_grid_entries = to_string(sb);
+
+  string_replace(album_grid, "$album_grid_entries", album_grid_entries, &album_grid);
+  
+  free_builder(sb);
+  return album_grid;
+}
+
 int get_artist(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
   const char *id =
     MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
   if (!id) return MHD_NO;
 
-  char *content = concat("<p>", id, "</p>");
-  return ok(content, strlen(content), "text/html", conn, FREE);
+
+  int artist_id = atoi(id);
+  char* album_grid = get_album_grid(artist_id, db);
+  
+  return ok(album_grid, strlen(album_grid), "text/html", conn, FREE);
 }
 
 
@@ -194,6 +259,8 @@ int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
   int size = read_file(concat("../", path), &file);
   if (!size) return MHD_NO;
 
+  printf("%s\n", path);
+  
   char *mime = "image/jpeg";
   if (has_extension(".png", path)) {
     mime = "image/png";
@@ -249,12 +316,13 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
   sqlite3_int64 song_id = strtoll(song_id_str, NULL, 10);
 
   sqlite3_stmt *stmt =
-    query_by_id("SELECT files.path, songs.title, artists.name, albums.id "
-		"FROM songs "
-		"JOIN albums ON songs.album_id = albums.id "
-		"JOIN artists ON songs.artist_id = artists.id "
-		"JOIN files ON songs.id = files.song_id "
-		"WHERE songs.id = ?",
+      query_by_id("SELECT files.path, songs.title, artists.name, albums.id "
+                  "FROM songs "
+                  "JOIN albums ON songs.album_id = albums.id "
+                  "JOIN artists ON songs.artist_id = artists.id "
+                  "JOIN files ON songs.id = files.song_id "
+                  "WHERE songs.id = ?"
+		  "AND files.extension = 'ogg'",
 		song_id, db);
 
   char* path   = copy(sqlite3_column_text(stmt, 0));
@@ -351,4 +419,53 @@ sqlite3_stmt* query_by_id(char *query, int id, sqlite3* db) {
   }
 
   return stmt;
+}
+
+char* build_library_grid(sqlite3 *db) {
+  const char *sql = "SELECT albums.id, albums.title, artists.name "
+                    "FROM albums "
+                    "JOIN artists ON albums.artist_id = artists.id "
+                    "ORDER BY albums.title ";
+
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQLite prepare failed: %s\n", sqlite3_errmsg(db));
+        return (char*)-1;
+    }
+
+    char* album_grid;
+    int size =
+      read_file("templates/album_grid.html", &album_grid);
+    assert(size, "could not read album_grid.html");
+
+    char* album_grid_entry;
+    size =
+        read_file("templates/album_grid_entry.html", &album_grid_entry);
+    assert(size, "could not read album_grid_entry.html");
+
+    StringBuilder *sb = new_builder(1024);
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+      sqlite3_int64 album_id = sqlite3_column_int64(stmt, 0);
+      const char *album_title = (char*)sqlite3_column_text(stmt, 1);
+      const char *artist_name = (char*)sqlite3_column_text(stmt, 2);
+
+      char *entry = copy(album_grid_entry);
+
+      char album_id_str[8];
+      snprintf(album_id_str, 8, "%lld", album_id);
+
+      string_replace(entry, "$album_id", album_id_str,  &entry);
+      string_replace(entry, "$album_title", album_title, &entry);
+      string_replace(entry, "$artist_name", artist_name, &entry);
+
+      add_to(sb, entry);
+    }
+    sqlite3_finalize(stmt);
+    char *album_grid_entries = to_string(sb);
+
+    string_replace(album_grid, "$album_grid_entries", album_grid_entries, &album_grid);
+    free_builder(sb);
+    
+    return album_grid;
 }

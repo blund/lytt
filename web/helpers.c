@@ -24,7 +24,7 @@ int ok(char *content, int size, char *mime, struct MHD_Connection *conn,
   return ret;
 }
 
-char *copy(const unsigned char *string) {
+char *copy(const char *string) {
   char* dest = malloc(strlen((char*)string) + 1);
   strcpy(dest, (char*)string);
 

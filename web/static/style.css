@@ -13,16 +13,23 @@ body {
 }
 aside {
     width: 30vh;
+    min-width: 30vh;
     background: #f4f4f4;
     padding: 0.8rem;
     overflow-y: auto;
     border-right: 2px solid #ccc;
 }
+
+aside h1 {
+    padding-left: 1vh;
+}
+
 aside h2 {
     margin-top: 0;
     margin-bottom: 0;
     font-size: 1rem;
 }
+
 aside ul {
     list-style: none;
     padding-left: 20px;
@@ -38,6 +45,7 @@ aside a:hover {
 }
 
 main {
+    flex: 1;
     display: flex;
     flex-direction: column;
     font-size: 1.5rem;
@@ -105,6 +113,7 @@ footer {
     display: flex;
     align-items: center;
     width: 30vh;
+    min-width: 30vh;
     gap: 1rem;
 }
 .track-info img {
@@ -127,3 +136,32 @@ footer {
 .audio-container audio {
     width: 400px;
 }
+
+.album-grid {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    padding: 32px;
+    overflow-y: auto;
+    width: auto;
+    box-sizing: border-box;
+    margin-bottom: 100px;
+    justify-content: flex-start;
+}
+
+.album-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.album-card img {
+    width: 200px;
+    height: 200px;
+    object-fit: cover; /* crop if necessary */
+    border-radius: 4px;
+    align-items: center;
+}
+

@@ -108,9 +108,45 @@ int write_file(char *filename, char *data) {
   if (result < 0) return 0;
 }
 
-int string_replace(char *orig, const char *rep, const char *with, char** result) {
-  int rep_len  = strlen(rep);
-  int with_len = strlen(with);
+int string_replace(char *str, const char *rep, const char *with, char** result) {
+    size_t len_rep = strlen(rep);
+    size_t len_with = strlen(with);
+
+    // First pass: count occurrences
+    int count = 0;
+    const char *p = str;
+    while ((p = strstr(p, rep)) != NULL) {
+        count++;
+        p += len_rep;
+    }
+
+    if (!count) return 0;
+
+    // Allocate new string
+    size_t new_len = strlen(str) + (len_with - len_rep) * count + 1;
+    char* tmp = malloc(new_len);
+    char *out = tmp;
+
+    // Second pass: build new string
+    p = str;
+    const char *next;
+    while ((next = strstr(p, rep)) != NULL) {
+        size_t segment_len = next - p;
+        memcpy(out, p, segment_len);
+        out += segment_len;
+        memcpy(out, with, len_with);
+        out += len_with;
+        p = next + len_rep;
+    }
+    strcpy(out, p); // copy remainder
+
+    if (str == *result) free(str);
+    *result = tmp;
+    return count;
+}
+/*
+int string_replace(char *orig, const char *rep, const char *with, char** result)
+{ int rep_len  = strlen(rep); int with_len = strlen(with);
 
   char *location = strstr(orig, rep);
   if (!location) return 0;
@@ -139,6 +175,7 @@ int string_replace(char *orig, const char *rep, const char *with, char** result)
 
   return 1;
 }
+*/
 
 float random_float(float min, float max) {
     float scale = rand() / (float) RAND_MAX; /* [0, 1.0] */

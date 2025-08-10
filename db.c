@@ -16,9 +16,10 @@ char* init_artists =
 
 char *init_albums =
   "create table albums("
-  "id        integer primary key,"
-  "title     text not null,"
-  "cover     text not null,"
+  "id          integer primary key,"
+  "title       text not null,"
+  "cover       text not null,"
+  "cover-small text not null,"
   "artist_id integer," 
   "foreign key(artist_id) references artist(id)"
   ");";

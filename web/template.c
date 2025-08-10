@@ -5,8 +5,11 @@
 #define BL_STRINGBUILDER_IMPL
 #include "../bl.h"
 
+#include "helpers.h"
+
 char* get_artist_list(sqlite3 *db);
 char* get_album_list(sqlite3 *db);
+char* get_album_grid(sqlite3 *db);
 
 int main() {
   int result;
@@ -20,13 +23,19 @@ int main() {
   assert(result, "could not read template.layout.html");
 
   char* artists = get_artist_list(db);
-  result = string_replace(template, "$artists", artists, &template);
+  result = string_replace(template, "$artist_list", artists, &template);
   assert(result, "could not patch artists in template");
 
   char* albums = get_album_list(db);
-  result = string_replace(template, "$albums", albums, &template);
+  result = string_replace(template, "$album_list", albums, &template);
   assert(result, "could not patch albums in template");
   if (!result) return 0;
+
+  char* album_grid = get_album_grid(db);
+  result = string_replace(template, "$album_grid", album_grid, &template);
+  assert(result, "could not patch album_grid in template");
+  if (!result) return 0;
+
 
   template = concat("<!-- generated! do not modify -->\n\n", template);
   write_file("layout.html", template);
@@ -84,4 +93,53 @@ char* get_album_list(sqlite3 *db) {
     free_builder(sb);
     
     return album_list;
+}
+
+char* get_album_grid(sqlite3 *db) {
+  const char *sql = "SELECT albums.id, albums.title, artists.name "
+                    "FROM albums "
+                    "JOIN artists ON albums.artist_id = artists.id "
+                    "ORDER BY albums.title ";
+
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQLite prepare failed: %s\n", sqlite3_errmsg(db));
+        return (char*)-1;
+    }
+
+    char* album_grid;
+    int size =
+      read_file("templates/album_grid.html", &album_grid);
+    assert(size, "could not read album_grid.html");
+
+    char* album_grid_entry;
+    size =
+        read_file("templates/album_grid_entry.html", &album_grid_entry);
+    assert(size, "could not read album_grid_entry.html");
+
+    StringBuilder *sb = new_builder(1024);
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+      sqlite3_int64 album_id = sqlite3_column_int64(stmt, 0);
+      const char *album_title = (char*)sqlite3_column_text(stmt, 1);
+      const char *artist_name = (char*)sqlite3_column_text(stmt, 2);
+
+      char *entry = copy(album_grid_entry);
+
+      char album_id_str[8];
+      snprintf(album_id_str, 8, "%lld", album_id);
+
+      string_replace(entry, "$album_id", album_id_str,  &entry);
+      string_replace(entry, "$album_title", album_title, &entry);
+      string_replace(entry, "$artist_name", artist_name, &entry);
+
+      add_to(sb, entry);
+    }
+    sqlite3_finalize(stmt);
+    char *album_grid_entries = to_string(sb);
+
+    string_replace(album_grid, "$album_grid_entries", album_grid_entries, &album_grid);
+    free_builder(sb);
+    
+    return album_grid;
 }

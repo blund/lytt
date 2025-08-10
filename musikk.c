@@ -13,6 +13,8 @@
 #include "db.h"
 #include "files.h"
 
+char* make_small_cover(char *orig_path, char *album_path);
+
 int main(int argc, char* argv[]) {
   char* root;
 
@@ -50,9 +52,14 @@ int main(int argc, char* argv[]) {
       int cover_count = scandir(album_dir, &covers, select_image_file, NULL);
 
       char *cover = "";
-      if (cover_count) cover = covers[0]->d_name;
 
-      sqlite3_int64 album_id = insert_album(db, artist_id, album_title, concat(album_dir, "/", cover));
+      // small cover not generated yet
+      if (cover_count == 2) cover = concat(album_dir, "/small_cover.jpg");
+      if (cover_count == 1) {
+	cover = make_small_cover(covers[0]->d_name, album_dir);
+      }
+
+      sqlite3_int64 album_id = insert_album(db, artist_id, album_title, cover);
 
       struct dirent **formats;
       int format_count = scandir(album_dir, &formats, select_dirs, alphasort);
@@ -99,3 +106,25 @@ int main(int argc, char* argv[]) {
   return 0;
 }
 
+char *make_small_cover(char *orig_file, char *album_dir) {
+  char *orig_cover_path = concat(album_dir, "/", orig_file);
+  char *small_cover_path = concat(album_dir, "/small_cover.jpg");
+
+  // Build command string
+  char cmd[512];
+  snprintf(cmd, sizeof(cmd),
+	   "ffmpeg -y -i \"%s\" -vf scale=300:300 \"%s\" > /dev/null 2>&1",
+	   orig_cover_path, small_cover_path);
+
+  // Run conversion command
+  int ret = system(cmd);
+  if (ret != 0) {
+    fprintf(stderr, "Failed to generate small cover for %s\n", orig_cover_path);
+    // fallback to original or handle error
+  }
+
+
+  char *new_cover = concat(album_dir, "/small_cover.jpg");
+  printf("Generating new cover: %s\n", new_cover);
+  return new_cover;
+}

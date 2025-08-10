@@ -12,20 +12,28 @@
   <div class="overview">
     <!-- Overview aside-->
     <aside>
-      <h2>Artister</h2>
+      <a href="#"
+	 fx-trigger="click"
+	 fx-target="#explore"
+	 fx-action="/library"
+	 fx-swap="innerHTML"
+	 >
+	<h1>Library</h1>
+      </a>
+      <h2>Artists</h2>
       <ul>
-	$artists
+	$artist_list
       </ul>
       <hr>
-      <h2>Album</h2>
+      <h2>Albums</h2>
       <ul>
-	$albums
+	$album_list
       </ul>
     </aside>
 
     <!-- Dynamic explorer-->
     <main id="explore">
-      explore
+      $album_grid
     </main>
   </div>
 
