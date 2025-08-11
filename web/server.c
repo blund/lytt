@@ -31,7 +31,7 @@ int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db);
 
 
 enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3 *db);
-enum MHD_Result music_handler(struct MHD_Connection *conn, const char *url);
+enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sqlite3* db);
 
 char *build_song_list(int album_id, sqlite3* db);
 char* build_library_grid(sqlite3 *db);
@@ -101,8 +101,8 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
   if (starts_with(url, "/play"))
     return play_song(conn, db);
 
-  if (starts_with(url, "/musikk/"))
-    return music_handler(conn, url);
+  if (starts_with(url, "/stream"))
+    return stream_handler(conn, url, db);
 
   return get_layout(conn);
 }
@@ -318,7 +318,7 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
   sqlite3_int64 song_id = strtoll(song_id_str, NULL, 10);
 
   sqlite3_stmt *stmt =
-      query_by_id("SELECT files.path, songs.title, artists.name, albums.id "
+      query_by_id("SELECT files.id, songs.title, artists.name, albums.id "
                   "FROM songs "
                   "JOIN albums ON songs.album_id = albums.id "
                   "JOIN artists ON songs.artist_id = artists.id "
@@ -327,10 +327,10 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
 		  "AND files.extension = 'ogg'",
 		song_id, db);
 
-  char* path   = copy(sqlite3_column_text(stmt, 0));
-  char* title  = copy(sqlite3_column_text(stmt, 1));
-  char* artist = copy(sqlite3_column_text(stmt, 2));
-  int cover    = sqlite3_column_int64(stmt, 3);
+  int   file_id  = sqlite3_column_int64(stmt, 0);
+  char* song_title    = copy(sqlite3_column_text(stmt, 1));
+  char* artist_name   = copy(sqlite3_column_text(stmt, 2));
+  int   album_id = sqlite3_column_int64(stmt, 3);
   sqlite3_finalize(stmt);
 
   char* song_template;
@@ -338,24 +338,33 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
     read_file("templates/song_source.html", &song_template);
   assert(result, "could not read song_source.html");
 
-  // Create HTML <source> tag to return
-  char content[1024];
-  snprintf(content, sizeof(content),
-	   song_template, cover, artist, title, path);
-    
-  free(song_template);
-  free(path);
-  free(title);
-  free(artist);
+  char album_id_str[8];
+  snprintf(album_id_str, 8, "%d", album_id);
 
-  return ok(content, strlen(content), "text/html", conn, PERSIST);
+  char file_id_str[8];
+  snprintf(file_id_str, 8, "%d", file_id);
+
+  string_replace(song_template, "$album_id", album_id_str, &song_template);
+  string_replace(song_template, "$artist_name", artist_name, &song_template);
+  string_replace(song_template, "$song_title", song_title, &song_template);
+  string_replace(song_template, "$file_id", file_id_str, &song_template);
+  
+  free(song_title);
+  free(artist_name);
+
+  return ok(song_template, strlen(song_template), "text/html", conn, FREE);
 }
 
-enum MHD_Result music_handler(struct MHD_Connection *conn, const char *url) {
-  char filepath[512];
-  snprintf(filepath, sizeof(filepath), "../.%s", url);  // Note: still unsafe path handling
+enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sqlite3* db) {
+  const char *file_id_str = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
+  if (!file_id_str) return MHD_NO;
 
-  int fd = open(filepath, O_RDONLY);
+  sqlite3_stmt *stmt;
+  stmt = query_by_id("SELECT path FROM files WHERE id = ?;",atoi(file_id_str), db);
+  char* file_path    = copy(sqlite3_column_text(stmt, 0));
+  sqlite3_finalize(stmt);
+  
+  int fd = open(file_path, O_RDONLY);
   if (fd == -1) return MHD_NO;
 
   struct stat st;
