@@ -8,7 +8,7 @@
 
 #define BL_IMPL
 #define BL_STRINGBUILDER_IMPL
-#include "bl.h"
+#include "../bl.h"
 
 #include "db.h"
 #include "files.h"
@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
   int artist_count = scandir(root, &artists, select_dirs, alphasort);
 
   sqlite3 *db;
-  sqlite3_open("musikk.sqlite", &db);
+  sqlite3_open("../musikk.sqlite", &db);
   init_db(db);
 
   // Iterate over artist folders

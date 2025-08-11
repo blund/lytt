@@ -256,11 +256,9 @@ int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db) {
   sqlite3_finalize(stmt);
 
   char *file;
-  int size = read_file(concat("../", path), &file);
+  int size = read_file(path, &file);
   if (!size) return MHD_NO;
 
-  printf("%s\n", path);
-  
   char *mime = "image/jpeg";
   if (has_extension(".png", path)) {
     mime = "image/png";
