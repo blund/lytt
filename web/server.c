@@ -386,9 +386,6 @@ enum MHD_Result play_next_song(struct MHD_Connection *conn, sqlite3 *db) {
   sqlite3_int64 track_number = sqlite3_column_int64(stmt, 0);
   sqlite3_finalize(stmt);
 
-  printf("song count: %d\n", song_count);
-  printf("track number: %d\n", track_number);
-
   if (track_number < song_count) {
     char* song_source = play_song_by_id(song_id + 1, db);
     return ok(song_source, strlen(song_source), "text/html", conn, FREE);
