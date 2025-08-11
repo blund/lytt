@@ -2,8 +2,6 @@
 .PHONY: build-db
 
 build-db:
-	touch ../musikk.sqlite
-	rm ../musikk.sqlite
 	gcc build-db.c db.c files.c \
 		-lm -lsqlite3 -I./external/include -L./lib/lib -ltag_c \
 		-o build-db
