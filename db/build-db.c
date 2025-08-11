@@ -16,18 +16,18 @@
 char* make_small_cover(char *orig_path, char *album_path);
 
 int main(int argc, char* argv[]) {
-  char* root;
 
   // Check for incorrect args
-  if (argc != 2) return -1;
-  root = argv[1];
+  if (argc != 3) return -1;
+  char* root = argv[1];
+  char* db_path = argv[2];
 
   // Build artist dirs
   struct dirent **artists;
   int artist_count = scandir(root, &artists, select_dirs, alphasort);
 
   sqlite3 *db;
-  sqlite3_open("../musikk.sqlite", &db);
+  sqlite3_open(db_path, &db);
   init_db(db);
 
   // Iterate over artist folders

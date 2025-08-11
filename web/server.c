@@ -43,7 +43,11 @@ void handle_signal(int sig) {
   running = 0;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+  // Check for incorrect args
+  if (argc != 2) return -1;
+  char* db_path = argv[1];
+
   sqlite3 *db;
   int result;
 
@@ -51,7 +55,7 @@ int main() {
   signal(SIGTERM, handle_signal);
 
   // Open the music database
-  result = sqlite3_open("../musikk.sqlite", &db);
+  result = sqlite3_open(db_path, &db);
   assert(result == SQLITE_OK, sqlite3_errmsg(db));
 
   // Start the server
