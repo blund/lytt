@@ -1,8 +1,14 @@
 <source id="player-source"
+
 	data-cover="/album-cover?id=$album_id"
 	data-artist="$artist_name"
 	data-title="$song_title"
 	src="/stream?id=$file_id"
 	type="audio/ogg"
+
+	fx-trigger="nextSong"
+	fx-action="/play-next?id=$song_id"
+	fx-target="#player-source"
+	fx-swap="outerHTML"
 	>
 

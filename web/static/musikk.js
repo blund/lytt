@@ -10,5 +10,11 @@ document.addEventListener("fx:swapped", (evt)=>{
 
 	player.load();
 	player.play();
+
+	player.onended = (event) => {
+	    console.log("Song finished!");
+	    const source = document.getElementById("player-source");
+	    source.dispatchEvent(new Event('nextSong', { bubbles: true }));
+	}
     }
 })

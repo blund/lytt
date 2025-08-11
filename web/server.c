@@ -31,6 +31,7 @@ int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db);
 
 
 enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3 *db);
+enum MHD_Result play_next_song(struct MHD_Connection *conn, sqlite3 *db);
 enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sqlite3* db);
 
 char *build_song_list(int album_id, sqlite3* db);
@@ -98,8 +99,12 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
   if (starts_with(url, "/artist"))
     return get_artist(conn, url, db);
 
+  if (starts_with(url, "/play-next"))
+    return play_next_song(conn, db);
+
   if (starts_with(url, "/play"))
     return play_song(conn, db);
+
 
   if (starts_with(url, "/stream"))
     return stream_handler(conn, url, db);
@@ -311,12 +316,7 @@ char *build_song_list(int album_id, sqlite3* db) {
   return song_list;
 }
 
-enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
-  const char *song_id_str = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "song_id");
-  if (!song_id_str) return MHD_NO;
-
-  sqlite3_int64 song_id = strtoll(song_id_str, NULL, 10);
-
+char* play_song_by_id(int song_id, sqlite3* db) {
   sqlite3_stmt *stmt =
       query_by_id("SELECT files.id, songs.title, artists.name, albums.id "
                   "FROM songs "
@@ -338,21 +338,63 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
     read_file("templates/song_source.html", &song_template);
   assert(result, "could not read song_source.html");
 
-  char album_id_str[8];
-  snprintf(album_id_str, 8, "%d", album_id);
-
-  char file_id_str[8];
-  snprintf(file_id_str, 8, "%d", file_id);
-
-  string_replace(song_template, "$album_id", album_id_str, &song_template);
+  string_replace_int(song_template, "$album_id", album_id, &song_template);
   string_replace(song_template, "$artist_name", artist_name, &song_template);
   string_replace(song_template, "$song_title", song_title, &song_template);
-  string_replace(song_template, "$file_id", file_id_str, &song_template);
+  string_replace_int(song_template, "$file_id", file_id, &song_template);
+  string_replace_int(song_template, "$song_id", song_id, &song_template);
   
   free(song_title);
   free(artist_name);
+  
+  return song_template;
+}
 
-  return ok(song_template, strlen(song_template), "text/html", conn, FREE);
+enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
+  const char *song_id_str = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
+  if (!song_id_str) return MHD_NO;
+
+  sqlite3_int64 song_id = strtoll(song_id_str, NULL, 10);
+
+  char* song_source = play_song_by_id(song_id, db);
+  return ok(song_source, strlen(song_source), "text/html", conn, FREE);
+}
+
+
+enum MHD_Result play_next_song(struct MHD_Connection *conn, sqlite3 *db) {
+  const char *song_id_str = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
+
+  if (!song_id_str) return MHD_NO;
+
+  int song_id = atoi(song_id_str);
+
+  sqlite3_stmt *stmt = query_by_id("SELECT COUNT(*) AS song_count "
+				   "FROM songs "
+				   "WHERE album_id = ( "
+				   "    SELECT album_id "
+				   "    FROM songs "
+				   "    WHERE id = ? "
+				   ");",
+                                   song_id, db);
+  sqlite3_int64 song_count = sqlite3_column_int64(stmt, 0);
+  sqlite3_finalize(stmt);
+
+  stmt = query_by_id("SELECT track_number "
+		     "FROM songs "
+		     "WHERE id = ? ",
+		     song_id, db);
+  sqlite3_int64 track_number = sqlite3_column_int64(stmt, 0);
+  sqlite3_finalize(stmt);
+
+  printf("song count: %d\n", song_count);
+  printf("track number: %d\n", track_number);
+
+  if (track_number < song_count) {
+    char* song_source = play_song_by_id(song_id + 1, db);
+    return ok(song_source, strlen(song_source), "text/html", conn, FREE);
+  }
+
+  return MHD_NO;
 }
 
 enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sqlite3* db) {
