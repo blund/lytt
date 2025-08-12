@@ -84,6 +84,8 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
                         void **con_cls) {
   sqlite3 *db = (sqlite3 *)cls;
 
+  printf("url handler: %s\n", url);
+
   if (starts_with(url, "/library"))
     return get_library_grid(conn, url, db);
 
@@ -326,12 +328,12 @@ char* play_song_by_id(int song_id, sqlite3* db) {
                   "WHERE songs.id = ?"
 		  "AND files.extension = 'ogg'",
 		song_id, db);
+  assert(stmt != NULL, "could not get file for song id!");
 
-  int   file_id  = sqlite3_column_int64(stmt, 0);
-  char* song_title    = copy(sqlite3_column_text(stmt, 1));
-  char* artist_name   = copy(sqlite3_column_text(stmt, 2));
-  int   album_id = sqlite3_column_int64(stmt, 3);
-  sqlite3_finalize(stmt);
+  int   file_id       = sqlite3_column_int64(stmt, 0);
+  char* song_title    = sqlite3_column_text(stmt, 1);
+  char* artist_name   = sqlite3_column_text(stmt, 2);
+  int   album_id      = sqlite3_column_int64(stmt, 3);
 
   char* song_template;
   int result =
@@ -344,9 +346,7 @@ char* play_song_by_id(int song_id, sqlite3* db) {
   string_replace_int(song_template, "$file_id", file_id, &song_template);
   string_replace_int(song_template, "$song_id", song_id, &song_template);
   
-  free(song_title);
-  free(artist_name);
-  
+  sqlite3_finalize(stmt);
   return song_template;
 }
 
@@ -354,7 +354,7 @@ enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
   const char *song_id_str = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
   if (!song_id_str) return MHD_NO;
 
-  sqlite3_int64 song_id = strtoll(song_id_str, NULL, 10);
+  int song_id = atoi(song_id_str);
 
   char* song_source = play_song_by_id(song_id, db);
   return ok(song_source, strlen(song_source), "text/html", conn, FREE);
@@ -393,7 +393,7 @@ enum MHD_Result play_next_song(struct MHD_Connection *conn, sqlite3 *db) {
 
   return MHD_NO;
 }
-
+size_t CHUNK_SIZE = 24*1024; // bytes
 enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sqlite3* db) {
   const char *file_id_str = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
   if (!file_id_str) return MHD_NO;
@@ -417,9 +417,24 @@ enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sql
   struct MHD_Response *response;
   int ret;
 
+  printf("%s\n", range_header);
+
   if (range_header && strncmp(range_header, "bytes=", 6) == 0) {
-    off_t start = atoll(range_header + 6);
-    off_t length = st.st_size - start;
+    const char *range_spec = range_header + 6;
+    char *dash = strchr(range_spec, '-');
+
+    off_t start = 0;
+    if (dash) {
+      *dash = '\0';
+    }
+    if (strlen(range_spec) > 0) {
+      start = atoll(range_spec);
+    }
+
+    off_t end = start + CHUNK_SIZE - 1;
+    if (end >= st.st_size) end = st.st_size - 1;
+
+    off_t length = end - start + 1;
 
     response = MHD_create_response_from_fd_at_offset64(length, fd, start);
     MHD_add_response_header(response, "Content-Type", "audio/ogg");
@@ -429,17 +444,41 @@ enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sql
     snprintf(content_range, sizeof(content_range),
 	     "bytes %lld-%lld/%lld",
 	     (long long)start,
-	     (long long)(st.st_size - 1),
+	     (long long)end,
 	     (long long)st.st_size);
     MHD_add_response_header(response, "Content-Range", content_range);
 
-    ret = MHD_queue_response(conn, MHD_HTTP_PARTIAL_CONTENT, response); // 206
-  } else {
-    response = MHD_create_response_from_fd_at_offset64(st.st_size, fd, 0);
-    MHD_add_response_header(response, "Content-Type", "audio/ogg");
-    MHD_add_response_header(response, "Accept-Ranges", "bytes");
-    ret = MHD_queue_response(conn, MHD_HTTP_OK, response); // 200
+    ret = MHD_queue_response(conn, MHD_HTTP_PARTIAL_CONTENT, response);
   }
+  /*  
+      if (range_header && strncmp(range_header, "bytes=", 6) == 0) {
+      off_t start = atoll(range_header + 6);
+      off_t length = st.st_size - start;
+
+      response = MHD_create_response_from_fd_at_offset64(length, fd, start);
+      MHD_add_response_header(response, "Content-Type", "audio/ogg");
+      MHD_add_response_header(response, "Accept-Ranges", "bytes");
+
+      size_t CHUNK_SIZE = 1024; // bytes
+
+      printf("range: %d, %d\n", start, length);
+    
+      char content_range[128];
+      snprintf(content_range, sizeof(content_range),
+      "bytes %lld-%lld/%lld",
+      (long long)start,
+      (long long)(st.st_size - 1),
+      (long long)st.st_size);
+      MHD_add_response_header(response, "Content-Range", content_range);
+
+      ret = MHD_queue_response(conn, MHD_HTTP_PARTIAL_CONTENT, response); // 206
+      } else {
+      response = MHD_create_response_from_fd_at_offset64(st.st_size, fd, 0);
+      MHD_add_response_header(response, "Content-Type", "audio/ogg");
+      MHD_add_response_header(response, "Accept-Ranges", "bytes");
+      ret = MHD_queue_response(conn, MHD_HTTP_OK, response); // 200
+      }
+  */
 
   MHD_destroy_response(response);
   return ret;
