@@ -1,5 +1,5 @@
 # Lytt
-Lytt is a self hosted music streaming service. It is consists of
+Lytt is a self hosted music streaming service. It is consists of:
  - `build-db` a tool to create a database of your audio library
  - `server` the backend hosting a simple, [hypermedia](https://hypermedia.systems/hypermedia-a-reintroduction/) driven web app for streaming.
 
