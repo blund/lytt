@@ -417,24 +417,13 @@ enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sql
   struct MHD_Response *response;
   int ret;
 
-  printf("%s\n", range_header);
-
   if (range_header && strncmp(range_header, "bytes=", 6) == 0) {
-    const char *range_spec = range_header + 6;
-    char *dash = strchr(range_spec, '-');
+    size_t file_size = st.st_size;
+    off_t start = atoll(range_header + 6);
+    char* separator = strstr(range_header, "-");
+    off_t end = atoll(separator+1);
 
-    off_t start = 0;
-    if (dash) {
-      *dash = '\0';
-    }
-    if (strlen(range_spec) > 0) {
-      start = atoll(range_spec);
-    }
-
-    off_t end = start + CHUNK_SIZE - 1;
-    if (end >= st.st_size) end = st.st_size - 1;
-
-    off_t length = end - start + 1;
+    off_t length = end - start+1;
 
     response = MHD_create_response_from_fd_at_offset64(length, fd, start);
     MHD_add_response_header(response, "Content-Type", "audio/ogg");
@@ -442,43 +431,19 @@ enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sql
 
     char content_range[128];
     snprintf(content_range, sizeof(content_range),
-	     "bytes %lld-%lld/%lld",
-	     (long long)start,
-	     (long long)end,
-	     (long long)st.st_size);
+	     "bytes %ld-%ld/%ld",
+	     start,
+	     end,
+	     file_size);
+
     MHD_add_response_header(response, "Content-Range", content_range);
-
-    ret = MHD_queue_response(conn, MHD_HTTP_PARTIAL_CONTENT, response);
+    ret = MHD_queue_response(conn, MHD_HTTP_PARTIAL_CONTENT, response); // 206
+  } else {
+    response = MHD_create_response_from_fd_at_offset64(st.st_size, fd, 0);
+    MHD_add_response_header(response, "Content-Type", "audio/ogg");
+    MHD_add_response_header(response, "Accept-Ranges", "bytes");
+    ret = MHD_queue_response(conn, MHD_HTTP_OK, response); // 200
   }
-  /*  
-      if (range_header && strncmp(range_header, "bytes=", 6) == 0) {
-      off_t start = atoll(range_header + 6);
-      off_t length = st.st_size - start;
-
-      response = MHD_create_response_from_fd_at_offset64(length, fd, start);
-      MHD_add_response_header(response, "Content-Type", "audio/ogg");
-      MHD_add_response_header(response, "Accept-Ranges", "bytes");
-
-      size_t CHUNK_SIZE = 1024; // bytes
-
-      printf("range: %d, %d\n", start, length);
-    
-      char content_range[128];
-      snprintf(content_range, sizeof(content_range),
-      "bytes %lld-%lld/%lld",
-      (long long)start,
-      (long long)(st.st_size - 1),
-      (long long)st.st_size);
-      MHD_add_response_header(response, "Content-Range", content_range);
-
-      ret = MHD_queue_response(conn, MHD_HTTP_PARTIAL_CONTENT, response); // 206
-      } else {
-      response = MHD_create_response_from_fd_at_offset64(st.st_size, fd, 0);
-      MHD_add_response_header(response, "Content-Type", "audio/ogg");
-      MHD_add_response_header(response, "Accept-Ranges", "bytes");
-      ret = MHD_queue_response(conn, MHD_HTTP_OK, response); // 200
-      }
-  */
 
   MHD_destroy_response(response);
   return ret;
