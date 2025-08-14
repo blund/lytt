@@ -21,5 +21,5 @@ run: server
 debug: server
 	cd web && gdb --args ./server $(music_db_path)
 
-deploy: server
+host: server
 	cd web && nohup ./server $(music_db_path) > output.log 2>&1 &
