@@ -153,6 +153,7 @@ footer {
 
 .album-card {
     flex: 1;
+    display: flex;
     flex-direction: column;
     align-items: center;
     font-size: 0.9rem;
@@ -165,7 +166,7 @@ footer {
     width: 200px;
     height: 200px;
     /* object-fit: cover; /* crop if necessary */
-    border-radius: 25px;
+    border-radius: 30px;
     align-items: center;
     /*box-shadow: 5px 5px 5px darkgrey;*/
 }
