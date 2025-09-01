@@ -31,7 +31,6 @@ int get_album_cover(struct MHD_Connection *conn, const char *url, sqlite3 *db);
 
 
 enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3 *db);
-enum MHD_Result play_next_song(struct MHD_Connection *conn, sqlite3 *db);
 enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sqlite3* db);
 
 char *build_song_list(int album_id, sqlite3* db);
@@ -101,12 +100,8 @@ enum MHD_Result handler(void *cls, struct MHD_Connection *conn, const char *url,
   if (starts_with(url, "/artist"))
     return get_artist(conn, url, db);
 
-  if (starts_with(url, "/play-next"))
-    return play_next_song(conn, db);
-
   if (starts_with(url, "/play"))
     return play_song(conn, db);
-
 
   if (starts_with(url, "/stream"))
     return stream_handler(conn, url, db);
@@ -352,15 +347,24 @@ char* play_song_by_id(int song_id, sqlite3* db) {
 
 enum MHD_Result play_song(struct MHD_Connection *conn, sqlite3* db) {
   const char *song_id_str = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
-  if (!song_id_str) return MHD_NO;
+
+  // dir is either 'prev' or 'next', and is used to skip forwards or backwards
+  const char *dir_str     = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "dir");
 
   int song_id = atoi(song_id_str);
+
+  if (dir_str) {
+    if (starts_with(dir_str, "next")) song_id += 1;
+    if (starts_with(dir_str, "prev")) song_id -= 1;
+  }
+
+  if (!song_id_str) return MHD_NO;
 
   char* song_source = play_song_by_id(song_id, db);
   return ok(song_source, strlen(song_source), "text/html", conn, FREE);
 }
 
-
+/*
 enum MHD_Result play_next_song(struct MHD_Connection *conn, sqlite3 *db) {
   const char *song_id_str = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
 
@@ -393,6 +397,8 @@ enum MHD_Result play_next_song(struct MHD_Connection *conn, sqlite3 *db) {
 
   return MHD_NO;
 }
+*/
+
 size_t CHUNK_SIZE = 24*1024; // bytes
 enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sqlite3* db) {
   const char *file_id_str = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "id");
@@ -423,7 +429,15 @@ enum MHD_Result stream_handler(struct MHD_Connection *conn, const char *url, sql
     char* separator = strstr(range_header, "-");
     off_t end = atoll(separator+1);
 
-    off_t length = end - start+1;
+    // Chrome
+    if (*(separator+1) == 0) {
+      puts("bam");
+      end = file_size;
+    }
+
+    // We need the +1 to satisfy safari!
+    off_t length = end - start + 1;
+
 
     response = MHD_create_response_from_fd_at_offset64(length, fd, start);
     MHD_add_response_header(response, "Content-Type", "audio/ogg");
