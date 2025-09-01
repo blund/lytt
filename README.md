@@ -3,6 +3,7 @@ Lytt is a self hosted music streaming service. It is consists of:
  - `build-db` a tool to create a database of your audio library
  - `server` the backend hosting a simple, [hypermedia](https://hypermedia.systems/hypermedia-a-reintroduction/) driven web app for streaming.
 
+The [Media Sessions API](https://developer.mozilla.org/en-US/docs/Web/API/Media_Session_API) has been implemented, which allows you to control Lytt form your phone's lockscreen and laptop's media control centre
 
 Built with [sqlite](https://sqlite.org/), [taglib](https://taglib.org/), [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd/) and [fixi.js](https://github.com/bigskysoftware/fixi).
 
